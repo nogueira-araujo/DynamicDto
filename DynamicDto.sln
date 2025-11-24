@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamicDto.Tester", "DataBu
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamicDtoCore", "DynamicDtoCore\DynamicDtoCore.csproj", "{8488BE04-4C9F-456D-9D56-6CE8F125C6BC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamicDtoCore.Tester", "DynamicDtoCore.Tester\DynamicDtoCore.Tester.csproj", "{8457C9F1-A7FE-48F2-B446-FA0C30F1A8A6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{8488BE04-4C9F-456D-9D56-6CE8F125C6BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8488BE04-4C9F-456D-9D56-6CE8F125C6BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8488BE04-4C9F-456D-9D56-6CE8F125C6BC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8457C9F1-A7FE-48F2-B446-FA0C30F1A8A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8457C9F1-A7FE-48F2-B446-FA0C30F1A8A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8457C9F1-A7FE-48F2-B446-FA0C30F1A8A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8457C9F1-A7FE-48F2-B446-FA0C30F1A8A6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
