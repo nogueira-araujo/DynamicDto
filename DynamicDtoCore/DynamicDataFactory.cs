@@ -254,8 +254,10 @@ namespace DynamicDtoCore
             if (!dynamicTypes.ContainsKey(typeName))
             {
                 AssemblyName aName = new AssemblyName(assemblyName);
-                AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
-                ModuleBuilder mb = ab.DefineDynamicModule(aName.Name);
+                //AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
+
+                AssemblyBuilder builder = AssemblyBuilder.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
+                ModuleBuilder mb = builder.DefineDynamicModule(aName.Name);
                 TypeBuilder tb = mb.DefineType(typeName, TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Serializable | TypeAttributes.UnicodeClass | TypeAttributes.Sealed | TypeAttributes.AutoLayout);
                 var cb = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
                 //criando os campos
@@ -362,8 +364,11 @@ namespace DynamicDtoCore
             if (!dynamicTypes.ContainsKey(typeName))
             {
                 AssemblyName aName = new AssemblyName(assemblyName);
-                AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
-                ModuleBuilder mb = ab.DefineDynamicModule(aName.Name);
+
+                //AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
+
+                AssemblyBuilder builder = AssemblyBuilder.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
+                ModuleBuilder mb = builder.DefineDynamicModule(aName.Name);
                 TypeBuilder tb = mb.DefineType(typeName, TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Serializable | TypeAttributes.UnicodeClass | /*TypeAttributes.Sealed |*/ TypeAttributes.AutoLayout);
                 var cb = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
 
