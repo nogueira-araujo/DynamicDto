@@ -1,2 +1,35 @@
 ﻿// See https://aka.ms/new-console-template for more information
+using Microsoft.Data.SqlClient;
+using System;
+using System.Data.Common;
+using System.Data.SqlTypes;
+
 Console.WriteLine("Hello, World!");
+
+const string SQL = @"SELECT TOP (1000) [BusinessEntityID]
+      ,[PersonType]
+      ,[NameStyle]
+      ,[Title]
+      ,[FirstName]
+      ,[MiddleName]
+      ,[LastName]
+      ,[Suffix]
+      ,[EmailPromotion]
+      ,[AdditionalContactInfo]
+      ,[Demographics]
+      ,[rowguid]
+      ,[ModifiedDate]
+FROM[AdventureWorks2025].[Person].[Person]";
+
+using (DbConnection connection = DynamicDtoCore.ProviderHelper.CreateConnection())
+{
+    var factory = new DynamicDtoCore.DynamicClassFactory(connection.CreateCommand());
+    var results = factory.Select(SQL);
+    foreach (var item in results)
+    {
+        Console.WriteLine($"{item.FistName} {item.LastName}");
+    }
+}
+
+Console.ReadLine();
+

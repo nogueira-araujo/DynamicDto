@@ -9,7 +9,7 @@ namespace DynamicDtoCore
 {
     #region Documentation
     /// <summary>
-    /// Atributo que define a um método que retorne um tipo dinâmico de <see cref="DynamicDataFactory.Select"/>, os parâmetros customizados para criação
+    /// Atributo que define a um método que retorne um tipo dinâmico de <see cref="DynamicClassFactory.Select"/>, os parâmetros customizados para criação
     /// da classe de retorno dinâmica.
     /// </summary>
     #endregion

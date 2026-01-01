@@ -1,15 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace DataBuilder
+namespace DynamicDto
 {
     #region Documentation
     /// <summary>
-    /// Atributo que define a um método que retorne um tipo dinâmico de <see cref="DynamicDataFactory.Select"/>, os parâmetros customizados para criação
+    /// Atributo que define a um método que retorne um tipo dinâmico de <see cref="DynamicClassFactory.Select"/>, os parâmetros customizados para criação
     /// da classe de retorno dinâmica.
     /// </summary>
     #endregion

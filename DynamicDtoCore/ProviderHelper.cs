@@ -32,37 +32,44 @@ namespace DynamicDtoCore
                     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
                     .Build();
 
-                // Lê qual conexão usar (ex: "Default")
+                // Lê qual conexão usar
                 string connectionName = configuration["Connection"];
+                //não deve fazer nada se não houver conexão definida e o carregamento da string de conexão se encerra aqui
+                if (!string.IsNullOrEmpty(connectionName))
+                {
+                    // Lê a connection string
+                    connectionString = configuration.GetConnectionString(connectionName);
+                    // Lê o provider info (ex: "Npgsql, Npgsql.NpgsqlFactory")
+                    string providerInfo = configuration[$"DbProviders:{connectionName}"];
 
-                if (string.IsNullOrEmpty(connectionName))
-                    throw new InvalidOperationException(
-                        "Configuration key 'Connection' not found in appsettings.json");
+                    if (!string.IsNullOrEmpty(providerInfo))
+                    {
+                        if (providerInfo.Contains(","))
+                        {
+                            string assemblyName;
+                            string factoryTypeName;
+                            var parts = providerInfo.Split(new[] { ',' }, 2);
+                            assemblyName = parts[0].Trim();
+                            factoryTypeName = parts[1].Trim();
+                            // Registra e retorna o provider se necessário
+                            factory = TryGetProviderFactory(assemblyName, factoryTypeName);
 
-                // Lê a connection string
-                connectionString = configuration.GetConnectionString(connectionName);
-
-                if (string.IsNullOrEmpty(connectionString))
-                    throw new InvalidOperationException(
-                        $"Connection string '{connectionName}' not found in ConnectionStrings section.");
-
-                // Lê o provider name
-                string providerName = configuration[$"DbProviders:{connectionName}"];
-
-                if (string.IsNullOrEmpty(providerName))
-                    throw new InvalidOperationException(
-                        $"Provider name for '{connectionName}' not found in DbProviders section.");
-
-                // Registra o provider se necessário
-                RegisterProviderIfNeeded(providerName);
-
-                // Obtém a factory
-                factory = DbProviderFactories.GetFactory(providerName);
-
-                // Configura os delimitadores (Quote Prefix/Suffix)
-                var commandBuilder = factory.CreateCommandBuilder();
-                QuotePrefix = commandBuilder.QuotePrefix;
-                QuoteSuffix = commandBuilder.QuoteSuffix;
+                            var commandBuilder = factory.CreateCommandBuilder();
+                            QuotePrefix = commandBuilder.QuotePrefix;
+                            QuoteSuffix = commandBuilder.QuoteSuffix;
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException(
+                                  $"Provider info is an incorrect format.");
+                        }
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException(
+                               $"Provider info for '{connectionName}' not found in DbProviders section.");
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -74,208 +81,124 @@ namespace DynamicDtoCore
         /// <summary>
         /// Em .NET Core, alguns providers (como Microsoft.Data.SqlClient) precisam ser registrados explicitamente.
         /// </summary>
-        private static void RegisterProviderIfNeeded(string invariantName)
+        private static DbProviderFactory TryGetProviderFactory(string assemblyName, string factoryTypeName)
         {
             try
             {
-                // Tenta obter - se existir, não faz nada
-                DbProviderFactories.GetFactory(invariantName);
-                return; // Já está registrado
-            }
-            catch
-            {
-                // Não está registrado, vamos tentar encontrar e registrar dinamicamente
-            }
+                // Tenta obter a factory - se já estiver registrada, retorna
+                try
+                {
+                    var factory = DbProviderFactories.GetFactory(factoryTypeName);
+                    if (factory != null)
+                        return factory;
+                }
+                catch { }
 
-            try
-            {
-                // Tenta inferir o nome completo do tipo da factory
-                // Convenções comuns:
-                // 1. [InvariantName].[LastPart]Factory (ex: Npgsql.NpgsqlFactory)
-                // 2. [InvariantName].Factory (ex: MySql.Data.MySqlClient.MySqlClientFactory)
-
-                string[] possibleFactoryNames = GetPossibleFactoryTypeNames(invariantName);
-
+                // Tenta encontrar o tipo
                 Type factoryType = null;
-                Assembly factoryAssembly = null;
 
-                // Primeiro tenta nos assemblies já carregados
+                // 1. Procura nos assemblies já carregados
                 var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
                 foreach (var assembly in loadedAssemblies)
                 {
-                    foreach (var typeName in possibleFactoryNames)
+                    if (assembly.GetName().Name == assemblyName ||
+                        assembly.FullName.StartsWith(assemblyName + ","))
                     {
-                        factoryType = assembly.GetType(typeName, false, true);
-                        if (factoryType != null)
-                        {
-                            factoryAssembly = assembly;
-                            break;
-                        }
+                        factoryType = assembly.GetType(factoryTypeName, false, true);
+                        if (factoryType != null) break;
                     }
-                    if (factoryType != null) break;
                 }
 
-                // Se não encontrou, tenta carregar o assembly dinamicamente
+                // 2. Se não encontrou, tenta carregar o assembly
                 if (factoryType == null)
                 {
-                    // Extrai possíveis nomes de assembly do invariant name
-                    string[] possibleAssemblyNames = GetPossibleAssemblyNames(invariantName);
-
-                    foreach (var assemblyName in possibleAssemblyNames)
+                    try
                     {
-                        try
-                        {
-                            factoryAssembly = Assembly.Load(assemblyName);
+                        var assembly = Assembly.Load(assemblyName);
+                        factoryType = assembly.GetType(factoryTypeName, false, true);
+                    }
+                    catch
+                    {
+                        // Tenta carregar da pasta do executável
+                        var exePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                        var dllPath = Path.Combine(exePath, $"{assemblyName}.dll");
 
-                            foreach (var typeName in possibleFactoryNames)
-                            {
-                                factoryType = factoryAssembly.GetType(typeName, false, true);
-                                if (factoryType != null) break;
-                            }
-
-                            if (factoryType != null) break;
-                        }
-                        catch
+                        if (File.Exists(dllPath))
                         {
-                            // Tenta próximo nome de assembly
+                            var assembly = Assembly.LoadFrom(dllPath);
+                            factoryType = assembly.GetType(factoryTypeName, false, true);
                         }
                     }
                 }
 
-                // Última tentativa: procura DLLs na pasta do executável
                 if (factoryType == null)
                 {
-                    var exePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-                    string[] possibleDllNames = GetPossibleAssemblyNames(invariantName)
-                        .Select(name => Path.Combine(exePath, $"{name}.dll"))
-                        .Where(File.Exists)
-                        .ToArray();
-
-                    foreach (var dllPath in possibleDllNames)
-                    {
-                        try
-                        {
-                            factoryAssembly = Assembly.LoadFrom(dllPath);
-
-                            foreach (var typeName in possibleFactoryNames)
-                            {
-                                factoryType = factoryAssembly.GetType(typeName, false, true);
-                                if (factoryType != null) break;
-                            }
-
-                            if (factoryType != null) break;
-                        }
-                        catch
-                        {
-                            // Continua tentando
-                        }
-                    }
+                    throw new TypeLoadException(
+                        $"Could not load type '{factoryTypeName}' from assembly '{assemblyName}'. " +
+                        $"Ensure the provider package is installed.");
                 }
 
-                // Se ainda não encontrou, tenta procurar em todos os tipos do assembly
-                if (factoryType == null && factoryAssembly != null)
+                // Valida que é um DbProviderFactory
+                if (!typeof(DbProviderFactory).IsAssignableFrom(factoryType))
                 {
-                    factoryType = factoryAssembly.GetTypes()
-                        .FirstOrDefault(t => typeof(DbProviderFactory).IsAssignableFrom(t)
-                                             && !t.IsAbstract
-                                             && t.Name.EndsWith("Factory", StringComparison.OrdinalIgnoreCase));
+                    throw new InvalidOperationException(
+                        $"Type '{factoryTypeName}' is not a DbProviderFactory.");
                 }
 
-                if (factoryType == null)
-                {
-                    throw new NotSupportedException(
-                        $"Provider '{invariantName}' could not be found. " +
-                        $"Ensure the provider assembly is installed (via NuGet) or present in the application directory.");
-                }
-
-                // Obtém a instância singleton da factory (propriedade Instance)
-                var instanceProperty = factoryType.GetProperty("Instance",
+                // Obtém a instância singleton (propriedade Instance)
+                MemberInfo instanceMember = factoryType.GetProperty("Instance",
                     BindingFlags.Public | BindingFlags.Static);
-
-                if (instanceProperty == null)
-                {
-                    throw new NotSupportedException(
-                        $"Provider factory '{factoryType.FullName}' does not have a public static 'Instance' property.");
+                if (instanceMember == null) {
+                    instanceMember = factoryType.GetField("Instance", BindingFlags.Public | BindingFlags.Static);
                 }
 
-                var factoryInstance = instanceProperty.GetValue(null) as DbProviderFactory;
+                if (instanceMember == null)
+                {
+                    throw new MissingMemberException(
+                        $"Type '{factoryTypeName}' does not have a public static 'Instance' property.");
+                }
+
+                DbProviderFactory factoryInstance = null;
+                if (instanceMember is PropertyInfo propInfo)
+                {
+                    factoryInstance = propInfo.GetValue(null) as DbProviderFactory;
+                }
+                else if(instanceMember is FieldInfo fieldInfo)
+                {
+                    factoryInstance = fieldInfo.GetValue(null) as DbProviderFactory;
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        $"Member 'Instance' of type '{factoryTypeName}' is neither a property nor a field.");
+                }
 
                 if (factoryInstance == null)
                 {
-                    throw new NotSupportedException(
-                        $"Could not obtain DbProviderFactory instance from '{factoryType.FullName}.Instance'.");
+                    throw new InvalidOperationException(
+                        $"Could not obtain DbProviderFactory instance from '{factoryTypeName}.Instance'.");
                 }
 
-                // Registra o provider
-                DbProviderFactories.RegisterFactory(invariantName, factoryInstance);
+                // Registra o provider usando o assembly name como invariant name
+                DbProviderFactories.RegisterFactory(assemblyName, factoryInstance);
+                return factoryInstance;
             }
             catch (Exception ex)
             {
                 throw new InvalidOperationException(
-                    $"Failed to register provider '{invariantName}'. " +
-                    $"Ensure the provider package is installed and accessible.",
+                    $"Failed to register provider '{assemblyName}', '{factoryTypeName}'. " +
+                    $"Check the format and ensure the provider assembly is available.",
                     ex);
             }
-        }
-
-        /// <summary>
-        /// Gera possíveis nomes de tipo da factory baseado no invariant name
-        /// </summary>
-        private static string[] GetPossibleFactoryTypeNames(string invariantName)
-        {
-            var parts = invariantName.Split('.');
-            var lastPart = parts[parts.Length - 1];
-
-            return new[]
-            {
-        // Padrão: Npgsql.NpgsqlFactory
-        $"{invariantName}.{lastPart}Factory",
-        
-        // Padrão alternativo: MySql.Data.MySqlClient.MySqlClientFactory
-        $"{invariantName}.{lastPart.Replace(".", "")}Factory",
-        
-        // Padrão: System.Data.SQLite.SQLiteFactory
-        $"{invariantName}.{lastPart}Factory",
-        
-        // Caso o invariant name já termine com o nome da classe
-        $"{invariantName}Factory",
-        
-        // Oracle usa Client suffix: Oracle.ManagedDataAccess.Client.OracleClientFactory
-        lastPart == "Client" && parts.Length > 1
-            ? $"{invariantName}.{parts[parts.Length - 2]}ClientFactory"
-            : null
-    }.Where(s => s != null).Distinct().ToArray();
-        }
-
-        /// <summary>
-        /// Gera possíveis nomes de assembly baseado no invariant name
-        /// </summary>
-        private static string[] GetPossibleAssemblyNames(string invariantName)
-        {
-            var parts = invariantName.Split('.');
-
-            var names = new List<string>
-    {
-        // Nome completo: MySql.Data.MySqlClient
-        invariantName,
-        
-        // Primeira parte: MySql
-        parts[0],
-        
-        // Duas primeiras partes: MySql.Data
-        parts.Length > 1 ? string.Join(".", parts.Take(2)) : null,
-        
-        // Três primeiras partes: Oracle.ManagedDataAccess.Client
-        parts.Length > 2 ? string.Join(".", parts.Take(3)) : null
-    };
-
-            return names.Where(s => s != null).Distinct().ToArray();
         }
 
         public static DbConnection CreateConnection()
         {
             lock (locker)
             {
+                if (string.IsNullOrEmpty(connectionString))
+                    throw new InvalidOperationException(
+                        "Configuration key 'Connection' not found in appsettings.json or ConnectionString is not defined");
                 DbConnection conn = factory.CreateConnection();
                 conn.ConnectionString = connectionString;
                 return conn;

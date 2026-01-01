@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Data.Common;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace DataBuilder.Tester
+namespace DynamicDto.Tester
 {
 
     public interface IOrder
@@ -65,7 +61,7 @@ order by O.OV_ITEM, C.COD_CARACT";
             using (DbConnection conn2 = ProviderHelper.CreateConnection())
             {
                 conn2.Open();
-                var factory = new DynamicDataFactory(conn2.CreateCommand());
+                var factory = new DynamicClassFactory(conn2.CreateCommand());
 
                 var result2 = factory.Select<IOrder>(sql);
 

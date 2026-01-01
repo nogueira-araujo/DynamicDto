@@ -1,17 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
-using System.Threading.Tasks;
-using Dclass = DataBuilder.DynamicClassAttribute;
+using Dclass = DynamicDtoCore.DynamicClassAttribute;
 
-namespace DataBuilder
+namespace DynamicDtoCore
 {
     #region Documentation
     /// <summary>
@@ -19,7 +15,7 @@ namespace DataBuilder
     /// </summary>
     #endregion
     [DataObject]
-    public class DynamicDataFactory
+    public class DynamicClassFactory
     {
         #region Fields
 
@@ -34,12 +30,12 @@ namespace DataBuilder
 
         #region Constructors
 
-        static DynamicDataFactory()
+        static DynamicClassFactory()
         {
             dynamicTypes = new Dictionary<string, Type>();
         }
 
-        public DynamicDataFactory(DbCommand command)
+        public DynamicClassFactory(DbCommand command)
         {
             if (command == null)
                 throw new ArgumentNullException("command");
@@ -258,8 +254,10 @@ namespace DataBuilder
             if (!dynamicTypes.ContainsKey(typeName))
             {
                 AssemblyName aName = new AssemblyName(assemblyName);
-                AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
-                ModuleBuilder mb = ab.DefineDynamicModule(aName.Name);
+                //AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
+
+                AssemblyBuilder builder = AssemblyBuilder.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
+                ModuleBuilder mb = builder.DefineDynamicModule(aName.Name);
                 TypeBuilder tb = mb.DefineType(typeName, TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Serializable | TypeAttributes.UnicodeClass | TypeAttributes.Sealed | TypeAttributes.AutoLayout);
                 var cb = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
                 //criando os campos
@@ -366,8 +364,11 @@ namespace DataBuilder
             if (!dynamicTypes.ContainsKey(typeName))
             {
                 AssemblyName aName = new AssemblyName(assemblyName);
-                AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
-                ModuleBuilder mb = ab.DefineDynamicModule(aName.Name);
+
+                //AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
+
+                AssemblyBuilder builder = AssemblyBuilder.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
+                ModuleBuilder mb = builder.DefineDynamicModule(aName.Name);
                 TypeBuilder tb = mb.DefineType(typeName, TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Serializable | TypeAttributes.UnicodeClass | /*TypeAttributes.Sealed |*/ TypeAttributes.AutoLayout);
                 var cb = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
 

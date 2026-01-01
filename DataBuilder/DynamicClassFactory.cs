@@ -1,13 +1,16 @@
-﻿using System.ComponentModel;
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
-using Dclass = DynamicDtoCore.DynamicClassAttribute;
+using Dclass = DynamicDto.DynamicClassAttribute;
 
-namespace DynamicDtoCore
+namespace DynamicDto
 {
     #region Documentation
     /// <summary>
@@ -15,7 +18,7 @@ namespace DynamicDtoCore
     /// </summary>
     #endregion
     [DataObject]
-    public class DynamicDataFactory
+    public class DynamicClassFactory
     {
         #region Fields
 
@@ -30,12 +33,12 @@ namespace DynamicDtoCore
 
         #region Constructors
 
-        static DynamicDataFactory()
+        static DynamicClassFactory()
         {
             dynamicTypes = new Dictionary<string, Type>();
         }
 
-        public DynamicDataFactory(DbCommand command)
+        public DynamicClassFactory(DbCommand command)
         {
             if (command == null)
                 throw new ArgumentNullException("command");
@@ -99,9 +102,7 @@ namespace DynamicDtoCore
             adapt.Fill(data);
             adapt.FillSchema(schema, SchemaType.Source);
             return sql;
-        }
-
-        
+        }   
 
         #region Documentation
         /// <summary>
@@ -254,10 +255,8 @@ namespace DynamicDtoCore
             if (!dynamicTypes.ContainsKey(typeName))
             {
                 AssemblyName aName = new AssemblyName(assemblyName);
-                //AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
-
-                AssemblyBuilder builder = AssemblyBuilder.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
-                ModuleBuilder mb = builder.DefineDynamicModule(aName.Name);
+                AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
+                ModuleBuilder mb = ab.DefineDynamicModule(aName.Name);
                 TypeBuilder tb = mb.DefineType(typeName, TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Serializable | TypeAttributes.UnicodeClass | TypeAttributes.Sealed | TypeAttributes.AutoLayout);
                 var cb = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
                 //criando os campos
@@ -364,11 +363,8 @@ namespace DynamicDtoCore
             if (!dynamicTypes.ContainsKey(typeName))
             {
                 AssemblyName aName = new AssemblyName(assemblyName);
-
-                //AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
-
-                AssemblyBuilder builder = AssemblyBuilder.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
-                ModuleBuilder mb = builder.DefineDynamicModule(aName.Name);
+                AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
+                ModuleBuilder mb = ab.DefineDynamicModule(aName.Name);
                 TypeBuilder tb = mb.DefineType(typeName, TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Serializable | TypeAttributes.UnicodeClass | /*TypeAttributes.Sealed |*/ TypeAttributes.AutoLayout);
                 var cb = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
 
