@@ -27,7 +27,7 @@ using (DbConnection connection = DynamicDtoCore.ProviderHelper.CreateConnection(
     var results = factory.Select(SQL);
     foreach (var item in results)
     {
-        Console.WriteLine($"{item.FistName} {item.LastName}");
+        Console.WriteLine($"{item.FirstName} {item.LastName}");
     }
 }
 
