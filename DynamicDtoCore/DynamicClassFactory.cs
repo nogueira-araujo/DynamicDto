@@ -1,4 +1,6 @@
-﻿using System.ComponentModel;
+﻿using Microsoft.Extensions.Configuration;
+using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
@@ -23,7 +25,9 @@ namespace DynamicDtoCore
         const string GET_PREFIX = "get_";
         const string SET_PREFIX = "set_";
 
-        private static Dictionary<string, Type> dynamicTypes;
+        private static ConcurrentDictionary<string, Type> dynamicTypes;
+        private static readonly bool useParameterNames = true;
+        private static readonly string parameterPrefix = "@";
 
         private DbCommand command;
         #endregion
@@ -32,7 +36,21 @@ namespace DynamicDtoCore
 
         static DynamicClassFactory()
         {
-            dynamicTypes = new Dictionary<string, Type>();
+            try
+            {
+                dynamicTypes = new ConcurrentDictionary<string, Type>();
+
+
+                DynamicClassFactory.useParameterNames = ConfigurationHelper.UseDbParameterName;
+                if (DynamicClassFactory.useParameterNames)
+                {
+                    DynamicClassFactory.parameterPrefix = ConfigurationHelper.ParameterPrefix;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("Could not initialize DynamicClassFactory.", ex);
+            }
         }
 
         public DynamicClassFactory(DbCommand command)
@@ -181,7 +199,10 @@ namespace DynamicDtoCore
                 {
                     if (!sql.Contains("{" + i.ToString() + "}")) throw new IndexOutOfRangeException("DynamicDataFactory.Prepare(sql, args).\nÍndice do argumento inexistente na expressão sql.");
                     DbParameter param = this.command.CreateParameter();
-                    //param.ParameterName = config.ParameterPrefix + "p" + i.ToString();
+                    if (DynamicClassFactory.useParameterNames)
+                    {
+                        param.ParameterName = parameterPrefix + "p" + i.ToString();
+                    }
                     this.DefineParameter(param, values[i]);
                     paramsNames.Add(param.ParameterName);
                     this.command.Parameters.Add(param);
@@ -297,7 +318,7 @@ namespace DynamicDtoCore
 
                 Type dType = tb.CreateType();
 
-                dynamicTypes.Add(typeName, dType);
+                dynamicTypes.TryAdd(typeName, dType);
             }
 
             return dynamicTypes[typeName];
@@ -384,7 +405,7 @@ namespace DynamicDtoCore
 
                 Type dType = tb.CreateType();
 
-                dynamicTypes.Add(typeName, dType);
+                dynamicTypes.TryAdd(typeName, dType);
             }
 
             return dynamicTypes[typeName];

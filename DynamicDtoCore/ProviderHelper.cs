@@ -10,7 +10,6 @@ namespace DynamicDtoCore
     public static class ProviderHelper
     {
         private static readonly object locker = new object();
-
         public static string QuotePrefix { get; private set; }
         public static string QuoteSuffix { get; private set; }
 
@@ -25,30 +24,17 @@ namespace DynamicDtoCore
             try
             {
                 locker = new object();
-
-                // Carrega o appsettings.json
-                var configuration = new ConfigurationBuilder()
-                    .SetBasePath(Directory.GetCurrentDirectory())
-                    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
-                    .Build();
-
-                // Lê qual conexão usar
-                string connectionName = configuration["Connection"];
                 //não deve fazer nada se não houver conexão definida e o carregamento da string de conexão se encerra aqui
-                if (!string.IsNullOrEmpty(connectionName))
+                if (!string.IsNullOrEmpty(ConfigurationHelper.ConnectionName))
                 {
-                    // Lê a connection string
-                    connectionString = configuration.GetConnectionString(connectionName);
-                    // Lê o provider info (ex: "Npgsql, Npgsql.NpgsqlFactory")
-                    string providerInfo = configuration[$"DbProviders:{connectionName}"];
-
-                    if (!string.IsNullOrEmpty(providerInfo))
+                    connectionString = ConfigurationHelper.ConnectionString;
+                    if (!string.IsNullOrEmpty(ConfigurationHelper.ProviderInfo))
                     {
-                        if (providerInfo.Contains(","))
+                        if (ConfigurationHelper.ProviderInfo.Contains(","))
                         {
                             string assemblyName;
                             string factoryTypeName;
-                            var parts = providerInfo.Split(new[] { ',' }, 2);
+                            var parts = ConfigurationHelper.ProviderInfo.Split(new[] { ',' }, 2);
                             assemblyName = parts[0].Trim();
                             factoryTypeName = parts[1].Trim();
                             // Registra e retorna o provider se necessário
@@ -67,7 +53,7 @@ namespace DynamicDtoCore
                     else
                     {
                         throw new InvalidOperationException(
-                               $"Provider info for '{connectionName}' not found in DbProviders section.");
+                               $"Provider info for '{ConfigurationHelper.ConnectionName}' not found in DbProviders section.");
                     }
                 }
             }
