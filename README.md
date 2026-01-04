@@ -88,4 +88,4 @@ foreach (var p in results) Console.WriteLine($"{p.FirstName} {p.LastName}");
 
 ## Contribuição e licença
 - Sob licença MIT.
-- Issues e PRs são bem?vindos: bugs, suporte a providers, melhorias de performance.
+- Issues e PRs são bem vindos: bugs, suporte a providers, melhorias de performance.
