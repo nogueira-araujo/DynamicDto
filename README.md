@@ -1,6 +1,10 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![GitHub license](https://img.shields.io/github/license/nogueira-araujo/DynamicDto?style=flat-square)]
+
 # DynamicDto / DynamicDtoCore
 
-Biblioteca para geração dinâmica de DTOs em tempo de execução a partir de resultados ADO.NET. Não é um ORM completo, mas pode ser usada como camada de materialização/projeção em um micro?ORM.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Biblioteca para geração dinâmica de DTOs em tempo de execução a partir de resultados ADO.NET. Não é um ORM completo, mas pode ser usada como camada de materialização/projeção em um micro[...] 
 
 ## Recursos principais
 - Gera tipos CLR em runtime com `System.Reflection.Emit` com propriedades baseadas nas colunas de resultado.
@@ -70,7 +74,7 @@ foreach (var p in results) Console.WriteLine($"{p.FirstName} {p.LastName}");
 
 ## Observações importantes
 - Performance: `Reflection.Emit` tem custo na primeira criação do tipo. Pré?aquecimento (pre-warm) recomendado para shapes usados com frequência.
-- Nomeação: nomes de tipos são gerados com base em `StackTrace` e `DynamicClassAttribute`. Isso pode ser frágil (inlining/otimizações). Fornecer nomes explícitos seria melhor para produção.
+- Nomeação: nomes de tipos são gerados com base em `StackTrace` e `DynamicClassAttribute`. Isso pode ser frágil (inlining/otimizações). Fornecer nomes explícitos seria melhor para produçã[...]
 - Parâmetros: ajuste `ParameterPrefix` e `UseDbParameterName` para corresponder ao Provider (alguns providers exigem parâmetros nomeados).
 - Serialização e debugging: tipos gerados em runtime podem causar dificuldades em serializadores e diagnósticos; considere geração em tempo de build se precisar de contratos estáveis.
 - Segurança: sempre use parâmetros (não concatenação de SQL) para evitar injeção.
