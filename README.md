@@ -1,24 +1,24 @@
 # DynamicDto / DynamicDtoCore
 
-Biblioteca para geração dinâmica de DTOs em tempo de execução a partir de resultados ADO.NET. Não é um ORM completo, mas pode ser usada como camada de materialização/projeção em um micro?ORM.
+Biblioteca para geraÃ§Ã£o dinÃ¢mica de DTOs em tempo de execuÃ§Ã£o a partir de resultados ADO.NET. NÃ£o Ã© um ORM completo, mas pode ser usada como camada de materializaÃ§Ã£o/projeÃ§Ã£o em um micro?ORM.
 
 ## Recursos principais
 - Gera tipos CLR em runtime com `System.Reflection.Emit` com propriedades baseadas nas colunas de resultado.
 - Suporta retorno como `IEnumerable<dynamic>` ou `IEnumerable<TInterface>` (gera uma classe que implementa a interface).
-- Cache de tipos gerados (`ConcurrentDictionary`) para reduzir custo de emissão repetida.
-- Pré-processa argumentos (flatten arrays), converte enums para tipos subjacentes e trata `DBNull`.
-- Suporte a geração opcional de nomes de parâmetros conforme provider (configurável).
+- Cache de tipos gerados (`ConcurrentDictionary`) para reduzir custo de emissÃ£o repetida.
+- PrÃ©-processa argumentos (flatten arrays), converte enums para tipos subjacentes e trata `DBNull`.
+- Suporte a geraÃ§Ã£o opcional de nomes de parÃ¢metros conforme provider (configurÃ¡vel).
 
 ## Requisitos
-- .NET 10 (o workspace também contém projetos com compatibilidade .NET Framework)
-- Referência ao provider ADO.NET desejado (ex: `Microsoft.Data.SqlClient`, `Npgsql`, etc.)
+- .NET 10 (o workspace tambÃ©m contÃ©m projetos com compatibilidade .NET Framework)
+- ReferÃªncia ao provider ADO.NET desejado (ex: `Microsoft.Data.SqlClient`, `Npgsql`, etc.)
 
 ## Estrutura relevante
-- `DynamicDtoCore` — núcleo: `ProviderHelper`, `DynamicClassFactory`, `ConfigurationHelper`.
-- `DynamicDtoCore.Tester` — exemplo/console para testar consultas.
-- `appsettings.json` — configuração de connection string e provedores.
+- `DynamicDtoCore` â€” nÃºcleo: `ProviderHelper`, `DynamicClassFactory`, `ConfigurationHelper`.
+- `DynamicDtoCore.Tester` â€” exemplo/console para testar consultas.
+- `appsettings.json` â€” configuraÃ§Ã£o de connection string e provedores.
 
-## Configuração (exemplo `appsettings.json`)
+## ConfiguraÃ§Ã£o (exemplo `appsettings.json`)
 
 ```json
 {
@@ -36,13 +36,13 @@ Biblioteca para geração dinâmica de DTOs em tempo de execução a partir de result
 }
 ```
 
-- `Connection` — chave usada para selecionar a connection string.
-- `ConnectionStrings:{name}` — connection string.
-- `DbProviders:{name}` — informação do provider (pode ser `"Assembly, FullTypeName"` ou `"FullTypeName"`).
-- Opções adicionais controladas por `ConfigurationHelper` (ex.: nomes de parâmetro).
+- `Connection` â€” chave usada para selecionar a connection string.
+- `ConnectionStrings:{name}` â€” connection string.
+- `DbProviders:{name}` â€” informaÃ§Ã£o do provider (pode ser `"Assembly, FullTypeName"` ou `"FullTypeName"`).
+- OpÃ§Ãµes adicionais controladas por `ConfigurationHelper` (ex.: nomes de parÃ¢metro).
 
-## Uso rápido
-Exemplo mínimo (veja `DynamicDtoCore.Tester\Program.cs`):
+## Uso rÃ¡pido
+Exemplo mÃ­nimo (veja `DynamicDtoCore.Tester\Program.cs`):
 
 ```csharp
 using (var conn = DynamicDtoCore.ProviderHelper.CreateConnection())
@@ -68,24 +68,24 @@ var results = factory.Select<IPerson>(sql);
 foreach (var p in results) Console.WriteLine($"{p.FirstName} {p.LastName}");
 ```
 
-## Observações importantes
-- Performance: `Reflection.Emit` tem custo na primeira criação do tipo. Pré?aquecimento (pre-warm) recomendado para shapes usados com frequência.
-- Nomeação: nomes de tipos são gerados com base em `StackTrace` e `DynamicClassAttribute`. Isso pode ser frágil (inlining/otimizações). Fornecer nomes explícitos seria melhor para produção.
-- Parâmetros: ajuste `ParameterPrefix` e `UseDbParameterName` para corresponder ao Provider (alguns providers exigem parâmetros nomeados).
-- Serialização e debugging: tipos gerados em runtime podem causar dificuldades em serializadores e diagnósticos; considere geração em tempo de build se precisar de contratos estáveis.
-- Segurança: sempre use parâmetros (não concatenação de SQL) para evitar injeção.
+## ObservaÃ§Ãµes importantes
+- Performance: `Reflection.Emit` tem custo na primeira criaÃ§Ã£o do tipo. PrÃ©?aquecimento (pre-warm) recomendado para shapes usados com frequÃªncia.
+- NomeaÃ§Ã£o: nomes de tipos sÃ£o gerados com base em `StackTrace` e `DynamicClassAttribute`. Isso pode ser frÃ¡gil (inlining/otimizaÃ§Ãµes). Fornecer nomes explÃ­citos seria melhor para produÃ§Ã£o.
+- ParÃ¢metros: ajuste `ParameterPrefix` e `UseDbParameterName` para corresponder ao Provider (alguns providers exigem parÃ¢metros nomeados).
+- SerializaÃ§Ã£o e debugging: tipos gerados em runtime podem causar dificuldades em serializadores e diagnÃ³sticos; considere geraÃ§Ã£o em tempo de build se precisar de contratos estÃ¡veis.
+- SeguranÃ§a: sempre use parÃ¢metros (nÃ£o concatenaÃ§Ã£o de SQL) para evitar injeÃ§Ã£o.
 
-## Integração com um ORM
-- Pode ser usada como camada de projeção/materialização.
-- Combine com um builder de comandos/queries e gestão de transações para compor um micro?ORM.
-- Para funcionalidades completas (change tracking, migrações), prefira ORMs maduros ou adicione camadas adicionais.
+## IntegraÃ§Ã£o com um ORM
+- Pode ser usada como camada de projeÃ§Ã£o/materializaÃ§Ã£o.
+- Combine com um builder de comandos/queries e gestÃ£o de transaÃ§Ãµes para compor um micro?ORM.
+- Para funcionalidades completas (change tracking, migraÃ§Ãµes), prefira ORMs maduros ou adicione camadas adicionais.
 
 ## Melhorias sugeridas
-- API para nomes/namespaces explícitos para tipos gerados.
-- Persistência ou pré?geração de types para evitar emit em runtime.
-- Mapeamentos e conversões configuráveis (coluna?propriedade).
-- Proteção adicional contra criação concorrente duplicada de tipos.
+- API para nomes/namespaces explÃ­citos para tipos gerados.
+- PersistÃªncia ou prÃ©?geraÃ§Ã£o de types para evitar emit em runtime.
+- Mapeamentos e conversÃµes configurÃ¡veis (coluna?propriedade).
+- ProteÃ§Ã£o adicional contra criaÃ§Ã£o concorrente duplicada de tipos.
 
-## Contribuição e licença
-- Adicionar `LICENSE` apropriado ao repositório (ex.: MIT).
-- Issues e PRs são bem?vindos: bugs, suporte a providers, melhorias de performance.
+## ContribuiÃ§Ã£o e licenÃ§a
+- Sob licenÃ§a MIT.
+- Issues e PRs sÃ£o bem?vindos: bugs, suporte a providers, melhorias de performance.
