@@ -2,8 +2,6 @@
 
 # DynamicDto / DynamicDtoCore
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
 Biblioteca para geração dinâmica de DTOs em tempo de execução a partir de resultados ADO.NET. Não é um ORM completo, mas pode ser usada como camada de materialização/projeção em um micro[...] 
 
 ## Recursos principais
@@ -46,7 +44,7 @@ Biblioteca para geração dinâmica de DTOs em tempo de execução a partir de r
 - Opções adicionais controladas por `ConfigurationHelper` (ex.: nomes de parâmetro).
 
 ## Uso rápido
-Exemplo mínimo (veja `DynamicDtoCore.Tester\Program.cs`):
+Exemplo mínimo (veja `DynamicDtoCore.Tester\\Program.cs`):
 
 ```csharp
 using (var conn = DynamicDtoCore.ProviderHelper.CreateConnection())
