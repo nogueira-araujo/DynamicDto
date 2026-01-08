@@ -1,5 +1,4 @@
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![GitHub license](https://img.shields.io/github/license/nogueira-araujo/DynamicDto?style=flat-square)]
-
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 # DynamicDto / DynamicDtoCore
 
 Biblioteca para geração dinâmica de DTOs em tempo de execução a partir de resultados ADO.NET. Não é um ORM completo, mas pode ser usada como camada de materialização/projeção em um micro[...] 
