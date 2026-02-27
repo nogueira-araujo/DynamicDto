@@ -83,9 +83,10 @@ foreach (var p in results) Console.WriteLine($"{p.FirstName} {p.LastName}");
 
 ## Melhorias sugeridas
 - API para nomes/namespaces explícitos para tipos gerados.
-- Persistência ou pré?geração de types para evitar emit em runtime.
+- Persistência ou pré-geração de types para evitar emit em runtime.
 - Mapeamentos e conversões configuráveis (coluna?propriedade).
 - Proteção adicional contra criação concorrente duplicada de tipos.
+- Retornar classes do tipo "Record".
 
 ## Contribuição e licença
 - Sob licença MIT.
