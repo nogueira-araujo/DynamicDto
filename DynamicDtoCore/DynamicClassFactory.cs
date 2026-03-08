@@ -20,7 +20,8 @@ namespace DynamicDtoCore
     public class DynamicClassFactory
     {
         #region Fields
-
+        const string ASSEMBLY_FORMAT = "{0}.Dynamics";
+        const string TYPE_FORMAT = "{0}.{1}.{2}";
         const string FIELD_PREFIX = "m_";
         const string GET_PREFIX = "get_";
         const string SET_PREFIX = "set_";
@@ -28,6 +29,8 @@ namespace DynamicDtoCore
         private static ConcurrentDictionary<string, Type> dynamicTypes;
         private static readonly bool useParameterNames = true;
         private static readonly string parameterPrefix = "@";
+
+        private String thisAssemblyName;
 
         private DbCommand command;
         #endregion
@@ -58,6 +61,7 @@ namespace DynamicDtoCore
             if (command == null)
                 throw new ArgumentNullException("command");
 
+            this.thisAssemblyName = this.GetType().Assembly.GetName().Name;
             this.command = command;
         }
 
@@ -76,7 +80,6 @@ namespace DynamicDtoCore
         [DataObjectMethod(DataObjectMethodType.Select)]
         public IEnumerable<Interface> Select<Interface>(string sql, params object[] args)
         {
-
             DataTable data;
             DataTable schema;
             StackTrace trace;
@@ -86,13 +89,13 @@ namespace DynamicDtoCore
         }
 
         #region Documentation
-        /// <summary>
-        /// Executa a consulta passada no parâmetro, segundo os argumentos desejados.
-        /// </summary>
-        /// <returns>
-        /// <see cref="IEnumerable"/> de tipo dinâmico que representa a resposta à consulta 
-        /// </returns>
-        #endregion
+            /// <summary>
+            /// Executa a consulta passada no parâmetro, segundo os argumentos desejados.
+            /// </summary>
+            /// <returns>
+            /// <see cref="IEnumerable"/> de tipo dinâmico que representa a resposta à consulta 
+            /// </returns>
+            #endregion
         [DataObjectMethod(DataObjectMethodType.Select)]
         public IEnumerable<dynamic> Select(string sql, params object[] args)
         {
@@ -101,7 +104,7 @@ namespace DynamicDtoCore
             DataTable schema;
             StackTrace trace;
             sql = InnerSelect(sql, args, out data, out schema, out trace);
-            Type dynamicType = BuildDynamicType(schema, trace);
+            Type dynamicType = BuildDynamicClass(schema, trace);
             return BuildResponse(dynamicType, data);
         }
 
@@ -225,18 +228,42 @@ namespace DynamicDtoCore
         /// Constroi e registra o tipo dinâmico segundo a chamada.
         /// </summary>
         #endregion
-        private Type BuildDynamicType(DataTable schema, StackTrace trace)
+        private Type BuildDynamicClass(DataTable schema, StackTrace trace)
+        {
+            //neste caso typNameBuilder é passado vazio apenas para tender à estrutura do método ExtractAssemblyAndTypeName.
+            string assemblyName, typeName;
+            StringBuilder typeNameBuilder = new StringBuilder();
+            ExtractAssemblyAndTypeName(trace,string.Empty, out assemblyName, out typeName);
+
+            if (!dynamicTypes.ContainsKey(typeName))
+            {
+                AssemblyName aName = new AssemblyName(assemblyName);
+
+                AssemblyBuilder builder = AssemblyBuilder.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
+                ModuleBuilder mb = builder.DefineDynamicModule(aName.Name);
+                TypeBuilder tb = mb.DefineType(typeName, TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.UnicodeClass | TypeAttributes.Sealed | TypeAttributes.AutoLayout);
+                ConstructorBuilder cb = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+                //criando os campos
+
+                List<PropertyBuilder> createdProperties = new List<PropertyBuilder>();
+                this.MakeQueryProperties(schema, ref tb, createdProperties);
+                this.CreateVoidCtor(cb);
+
+                Type dType = tb.CreateType();
+                dynamicTypes.TryAdd(typeName, dType);
+            }
+
+            return dynamicTypes[typeName];
+        }
+
+        private void ExtractAssemblyAndTypeName(StackTrace trace, string defTypeName, out string assemblyName, out string typeName)
         {
             var attrib = trace.GetFrames().Where(f => Dclass.IsDefined(f.GetMethod())).Select<StackFrame, Dclass>(f => Dclass.GetDefinedAttribute(f.GetMethod())).LastOrDefault();
 
-            const string ASSEMBLY_FORMAT = "{0}.Dynamics";
-            const string TYPE_FORMAT = "{0}.{1}.{2}By";
             var callerFrame = trace.GetFrame(1);
 
-            string assemblyName;
-            string typeName;
-
-            MethodBase callerMethod = trace.GetFrames().Where(f => f.GetMethod().DeclaringType.Assembly.GetName().Name != "DataBuilder").First().GetMethod();
+            StringBuilder typeNameBuilder = new StringBuilder();
+            MethodBase callerMethod = trace.GetFrames().Where(f => f.GetMethod().DeclaringType.Assembly.GetName().Name != this.thisAssemblyName).First().GetMethod();
 
             if (attrib != null && !string.IsNullOrWhiteSpace(attrib.Namespace))
             {
@@ -244,7 +271,6 @@ namespace DynamicDtoCore
             }
             else
             {
-                //assemblyName = string.Format(ASSEMBLY_FORMAT, callerFrame.GetMethod().DeclaringType.Assembly.GetName().Name);
                 assemblyName = string.Format(ASSEMBLY_FORMAT, callerMethod.DeclaringType.Assembly.GetName().Name);
             }
             if (attrib != null)
@@ -253,8 +279,14 @@ namespace DynamicDtoCore
             }
             else
             {
-                StringBuilder typeNameBuilder = new StringBuilder();
-                typeNameBuilder.AppendFormat(TYPE_FORMAT, assemblyName, callerMethod.DeclaringType.Name, callerMethod.Name);
+                if (defTypeName != string.Empty)
+                {
+                    typeNameBuilder.AppendFormat(TYPE_FORMAT, assemblyName, callerMethod.DeclaringType.Name, defTypeName);
+                }
+                else
+                {
+                    typeNameBuilder.AppendFormat(TYPE_FORMAT, assemblyName, callerMethod.DeclaringType.Name, "By" + callerMethod.Name);
+                }
                 if (callerMethod.GetParameters().Length > 0)
                 {
                     foreach (var a in callerMethod.GetParameters())
@@ -270,51 +302,33 @@ namespace DynamicDtoCore
                 }
                 typeName = typeNameBuilder.ToString();
             }
+        }
 
+        #region Documentation
+        /// <summary>
+        /// Constroi e registra o tipo dinâmico segundo a chamada.
+        /// </summary>
+        #endregion
+        private Type BuildDynamicType<Interface>(DataTable schema, StackTrace trace)
+        {
+            Type interfaceType = typeof(Interface);
+
+            string assemblyName, typeName;
+            ExtractAssemblyAndTypeName(trace, interfaceType.Name.Substring(1) + "Class", out assemblyName, out typeName);
 
             if (!dynamicTypes.ContainsKey(typeName))
             {
                 AssemblyName aName = new AssemblyName(assemblyName);
-                //AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
 
                 AssemblyBuilder builder = AssemblyBuilder.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
                 ModuleBuilder mb = builder.DefineDynamicModule(aName.Name);
-                TypeBuilder tb = mb.DefineType(typeName, TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Serializable | TypeAttributes.UnicodeClass | TypeAttributes.Sealed | TypeAttributes.AutoLayout);
-                var cb = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
-                //criando os campos
-                List<FieldBuilder> fields = new List<FieldBuilder>();
-                foreach (var col in schema.Columns.Cast<DataColumn>())
-                {
-                    Type targetType = (col.AllowDBNull && col.DataType != typeof(string)) ? typeof(Nullable<>).MakeGenericType(col.DataType) : col.DataType;
-                    fields.Add(tb.DefineField(FIELD_PREFIX + col.ColumnName, targetType, FieldAttributes.Private));
-                }
+                TypeBuilder tb = mb.DefineType(typeName, TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.AutoLayout);
+                ConstructorBuilder cb = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
 
-                //criando as propriedades para os campos
-                List<PropertyBuilder> properties = new List<PropertyBuilder>();
-                foreach (var f in fields)
-                {
-                    properties.Add(tb.DefineProperty(f.Name.Remove(0, FIELD_PREFIX.Length), System.Reflection.PropertyAttributes.None, CallingConventions.Any, f.FieldType, null));
-                }
-
-                //definindo getters para as propriedades.
-                MethodAttributes getAttrib = MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig;
-                foreach (var p in properties)
-                {
-                    var newMethod = tb.DefineMethod(GET_PREFIX + p.Name, getAttrib, p.PropertyType, Type.EmptyTypes);
-                    ILGenerator ilGen = newMethod.GetILGenerator();
-                    ilGen.Emit(OpCodes.Ldarg_0);
-                    ilGen.Emit(OpCodes.Ldfld, fields.Where(s => s.Name == (FIELD_PREFIX + p.Name)).FirstOrDefault()); //selecionando o campo de referência.
-                    ilGen.Emit(OpCodes.Ret);
-
-                    //atrelando o método à propriedade.
-                    p.SetGetMethod(newMethod);
-                }
-                ConstructorInfo objCtor = typeof(object).GetConstructor(Type.EmptyTypes);
-
-                var ctorIL = cb.GetILGenerator();
-                ctorIL.Emit(OpCodes.Ldarg_0);
-                ctorIL.Emit(OpCodes.Call, objCtor);
-                ctorIL.Emit(OpCodes.Ret);
+                List<PropertyBuilder> createdProperties;
+                this.MakeInterfaceProperties<Interface>(ref tb, out createdProperties);
+                this.MakeQueryProperties(schema, ref tb, createdProperties);
+                this.CreateVoidCtor(cb);
 
                 Type dType = tb.CreateType();
 
@@ -326,102 +340,31 @@ namespace DynamicDtoCore
 
         #region Documentation
         /// <summary>
-        /// Constroi e registra o tipo dinâmico segundo a chamada.
+        /// Cria o construtor padrão para o tipo dinâmico, necessário para a criação de instâncias do tipo posteriormente.
         /// </summary>
+        /// <param name="cb">Instância de <see cref="ConstructorBuilder"/>Constructor Builder</param>
         #endregion
-        private Type BuildDynamicType<Interface>(DataTable schema, StackTrace trace)
+        private void CreateVoidCtor(ConstructorBuilder cb)
         {
-            var attrib = trace.GetFrames().Where(f => Dclass.IsDefined(f.GetMethod())).Select<StackFrame, Dclass>(f => Dclass.GetDefinedAttribute(f.GetMethod())).LastOrDefault();
+            ConstructorInfo objCtor = typeof(object).GetConstructor(Type.EmptyTypes);
 
-            const string ASSEMBLY_FORMAT = "{0}.Dynamics";
-            const string TYPE_FORMAT = "{0}.{1}.{2}By";
-            var callerFrame = trace.GetFrame(1);
-            Type interfaceType = typeof(Interface);
-
-            string assemblyName;
-            string typeName;
-            StringBuilder typeNameBuilder = new StringBuilder(interfaceType.Name.Substring(1) + "Class");
-
-            MethodBase callerMethod = trace.GetFrames().Where(f => f.GetMethod().DeclaringType.Assembly.GetName().Name != "DataBuilder").First().GetMethod();
-            //namespace
-            if (attrib != null && !string.IsNullOrWhiteSpace(attrib.Namespace))
-            {
-                assemblyName = string.Format(ASSEMBLY_FORMAT, attrib.Namespace);
-            }
-            else
-            {
-                //assemblyName = string.Format(ASSEMBLY_FORMAT, callerFrame.GetMethod().DeclaringType.Assembly.GetName().Name);
-                assemblyName = string.Format(ASSEMBLY_FORMAT, callerMethod.DeclaringType.Assembly.GetName().Name);
-            }
-            //classe
-            
-
-            if (attrib != null)
-            {
-                typeNameBuilder.Insert(0, attrib.ClassName);
-            }
-            else
-            {
-                typeNameBuilder.AppendFormat(TYPE_FORMAT, assemblyName, callerMethod.DeclaringType.Name, callerMethod.Name);
-                if (callerMethod.GetParameters().Length > 0)
-                {
-                    foreach (var a in callerMethod.GetParameters())
-                    {
-                        var name = a.Name.ToArray();
-                        name[0] = Char.ToUpper(name[0]);
-                        typeNameBuilder.Append(new string(name));
-                    }
-                }
-                else
-                {
-                    typeNameBuilder.Append("Void");
-                }
-                typeName = typeNameBuilder.ToString();
-            }
-
-
-            typeName = typeNameBuilder.ToString();
-
-            if (!dynamicTypes.ContainsKey(typeName))
-            {
-                AssemblyName aName = new AssemblyName(assemblyName);
-
-                //AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
-
-                AssemblyBuilder builder = AssemblyBuilder.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
-                ModuleBuilder mb = builder.DefineDynamicModule(aName.Name);
-                TypeBuilder tb = mb.DefineType(typeName, TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Serializable | TypeAttributes.UnicodeClass | /*TypeAttributes.Sealed |*/ TypeAttributes.AutoLayout);
-                var cb = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
-
-                List<PropertyBuilder> createdProperties;
-                this.MakeInterfaceProperties<Interface>(ref tb,out createdProperties);
-                this.MakeQueryProperties(schema,ref tb, createdProperties);
-                ConstructorInfo objCtor = typeof(object).GetConstructor(Type.EmptyTypes);
-
-                var ctorIL = cb.GetILGenerator();
-                ctorIL.Emit(OpCodes.Ldarg_0);
-                ctorIL.Emit(OpCodes.Call, objCtor);
-                ctorIL.Emit(OpCodes.Ret);
-
-                Type dType = tb.CreateType();
-
-                dynamicTypes.TryAdd(typeName, dType);
-            }
-
-            return dynamicTypes[typeName];
+            var ctorIL = cb.GetILGenerator();
+            ctorIL.Emit(OpCodes.Ldarg_0);
+            ctorIL.Emit(OpCodes.Call, objCtor);
+            ctorIL.Emit(OpCodes.Ret);
         }
 
         private void MakeQueryProperties(DataTable schema,ref TypeBuilder tb, List<PropertyBuilder> sharedProperties)
         {
-            Dictionary<string, FieldBuilder> queryFields = new Dictionary<string, FieldBuilder>();
+            Dictionary<string, FieldBuilder> fields = new Dictionary<string, FieldBuilder>();
             List<PropertyBuilder> properties = new List<PropertyBuilder>();
             foreach (var col in schema.Columns.Cast<DataColumn>().Where(c => !sharedProperties.Select(s => s.Name).Contains(c.ColumnName)))
             {
                 Type targetType = (col.AllowDBNull && col.DataType != typeof(string)) ? typeof(Nullable<>).MakeGenericType(col.DataType) : col.DataType;
-                queryFields.Add(FIELD_PREFIX + col.ColumnName, tb.DefineField(FIELD_PREFIX + col.ColumnName, targetType, FieldAttributes.Private));
+                fields.Add(FIELD_PREFIX + col.ColumnName, tb.DefineField(FIELD_PREFIX + col.ColumnName, targetType, FieldAttributes.Private));
             }
 
-            foreach (var f in queryFields.Values)
+            foreach (var f in fields.Values)
             {
                 properties.Add(tb.DefineProperty(f.Name.Remove(0, FIELD_PREFIX.Length), System.Reflection.PropertyAttributes.None, CallingConventions.Any, f.FieldType, null));
             }
@@ -430,7 +373,7 @@ namespace DynamicDtoCore
             MethodAttributes getAttrib = MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig;
             foreach (var p in properties)
             {
-                FieldBuilder field = queryFields[FIELD_PREFIX + p.Name];
+                FieldBuilder field = fields[FIELD_PREFIX + p.Name];
                 var newMethod = tb.DefineMethod(GET_PREFIX + p.Name, getAttrib, p.PropertyType, Type.EmptyTypes);
                 ILGenerator ilGen = newMethod.GetILGenerator();
                 ilGen.Emit(OpCodes.Ldarg_0);

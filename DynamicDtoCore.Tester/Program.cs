@@ -40,6 +40,7 @@ using (DbConnection connection = DynamicDtoCore.ProviderHelper.CreateConnection(
     foreach (var item in results)
     {
         Console.WriteLine($"{item.FirstName} {item.LastName}");
+        Console.WriteLine(item is IPerson);
     }
 }
 

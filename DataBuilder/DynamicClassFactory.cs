@@ -29,6 +29,7 @@ namespace DynamicDto
         private static Dictionary<string, Type> dynamicTypes;
 
         private DbCommand command;
+        private String thisAssemblyName;
         #endregion
 
         #region Constructors
@@ -43,6 +44,7 @@ namespace DynamicDto
             if (command == null)
                 throw new ArgumentNullException("command");
 
+            this.thisAssemblyName = this.GetType().Assembly.GetName().Name;
             this.command = command;
         }
 
@@ -216,7 +218,9 @@ namespace DynamicDto
             string assemblyName;
             string typeName;
 
-            MethodBase callerMethod = trace.GetFrames().Where(f => f.GetMethod().DeclaringType.Assembly.GetName().Name != "DataBuilder").First().GetMethod();
+            var thisAssembly = this.GetType().Assembly.GetName().Name;
+
+            MethodBase callerMethod = trace.GetFrames().Where(f => f.GetMethod().DeclaringType.Assembly.GetName().Name != thisAssembly).First().GetMethod();
 
             if (attrib != null && !string.IsNullOrWhiteSpace(attrib.Namespace))
             {
@@ -258,7 +262,7 @@ namespace DynamicDto
                 AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
                 ModuleBuilder mb = ab.DefineDynamicModule(aName.Name);
                 TypeBuilder tb = mb.DefineType(typeName, TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Serializable | TypeAttributes.UnicodeClass | TypeAttributes.Sealed | TypeAttributes.AutoLayout);
-                var cb = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+                ConstructorBuilder cb = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
                 //criando os campos
                 List<FieldBuilder> fields = new List<FieldBuilder>();
                 foreach (var col in schema.Columns.Cast<DataColumn>())
@@ -287,12 +291,8 @@ namespace DynamicDto
                     //atrelando o método à propriedade.
                     p.SetGetMethod(newMethod);
                 }
-                ConstructorInfo objCtor = typeof(object).GetConstructor(Type.EmptyTypes);
 
-                var ctorIL = cb.GetILGenerator();
-                ctorIL.Emit(OpCodes.Ldarg_0);
-                ctorIL.Emit(OpCodes.Call, objCtor);
-                ctorIL.Emit(OpCodes.Ret);
+                this.CreateVoidCtor(cb);
 
                 Type dType = tb.CreateType();
 
@@ -300,6 +300,22 @@ namespace DynamicDto
             }
 
             return dynamicTypes[typeName];
+        }
+
+        #region Documentation
+        /// <summary>
+        /// Cria o construtor padrão para o tipo dinâmico, necessário para a criação de instâncias do tipo posteriormente.
+        /// </summary>
+        /// <param name="cb">Instância de <see cref="ConstructorBuilder"/>Constructor Builder</param>
+        #endregion
+        private void CreateVoidCtor(ConstructorBuilder cb)
+        {
+            ConstructorInfo objCtor = typeof(object).GetConstructor(Type.EmptyTypes);
+
+            var ctorIL = cb.GetILGenerator();
+            ctorIL.Emit(OpCodes.Ldarg_0);
+            ctorIL.Emit(OpCodes.Call, objCtor);
+            ctorIL.Emit(OpCodes.Ret);
         }
 
         #region Documentation
@@ -320,7 +336,7 @@ namespace DynamicDto
             string typeName;
             StringBuilder typeNameBuilder = new StringBuilder(interfaceType.Name.Substring(1) + "Class");
 
-            MethodBase callerMethod = trace.GetFrames().Where(f => f.GetMethod().DeclaringType.Assembly.GetName().Name != "DataBuilder").First().GetMethod();
+            MethodBase callerMethod = trace.GetFrames().Where(f => f.GetMethod().DeclaringType.Assembly.GetName().Name != this.thisAssemblyName).First().GetMethod();
             //namespace
             if (attrib != null && !string.IsNullOrWhiteSpace(attrib.Namespace))
             {
@@ -366,17 +382,12 @@ namespace DynamicDto
                 AssemblyBuilder ab = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
                 ModuleBuilder mb = ab.DefineDynamicModule(aName.Name);
                 TypeBuilder tb = mb.DefineType(typeName, TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Serializable | TypeAttributes.UnicodeClass | /*TypeAttributes.Sealed |*/ TypeAttributes.AutoLayout);
-                var cb = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+                ConstructorBuilder cb = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
 
                 List<PropertyBuilder> createdProperties;
                 this.MakeInterfaceProperties<Interface>(ref tb,out createdProperties);
                 this.MakeQueryProperties(schema,ref tb, createdProperties);
-                ConstructorInfo objCtor = typeof(object).GetConstructor(Type.EmptyTypes);
-
-                var ctorIL = cb.GetILGenerator();
-                ctorIL.Emit(OpCodes.Ldarg_0);
-                ctorIL.Emit(OpCodes.Call, objCtor);
-                ctorIL.Emit(OpCodes.Ret);
+                this.CreateVoidCtor(cb);
 
                 Type dType = tb.CreateType();
 
