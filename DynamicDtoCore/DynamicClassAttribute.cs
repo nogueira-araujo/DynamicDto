@@ -67,10 +67,10 @@ namespace DynamicDtoCore
 
         }
 
-        public static DynamicClassAttribute GetDefinedAttribute<T>(T memberInfo) where T:MemberInfo
+        /*public static DynamicClassAttribute GetDefinedAttribute<T>(T memberInfo) where T:MemberInfo
         {
             return GetDefinedAttribute(memberInfo);
-        }
+        }*/
         #endregion Static Methods
     }
 }

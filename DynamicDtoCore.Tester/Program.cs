@@ -23,26 +23,43 @@ const string SQL = @"SELECT TOP (1000) [BusinessEntityID]
       ,[ModifiedDate]
 FROM[AdventureWorks2025].[Person].[Person]";
 
-using (DbConnection connection = DynamicDtoCore.ProviderHelper.CreateConnection())
-{
-    var factory = new DynamicDtoCore.DynamicClassFactory(connection.CreateCommand());
-    var results = factory.Select(SQL);
-    foreach (var item in results)
-    {
-        Console.WriteLine($"{item.FirstName} {item.LastName}");
-    }
-}
+DoSelectWithDynamicResult(SQL);
 
 using (DbConnection connection = DynamicDtoCore.ProviderHelper.CreateConnection())
 {
     var factory = new DynamicDtoCore.DynamicClassFactory(connection.CreateCommand());
     var results = factory.Select<IPerson>(SQL);
+    int i = 0;
     foreach (var item in results)
     {
-        Console.WriteLine($"{item.FirstName} {item.LastName}");
-        Console.WriteLine(item is IPerson);
+        if (i == 0)
+        {
+            Console.WriteLine(item.GetType().FullName);
+            i++;
+        }
+        //if(item is IPerson)
+        //Console.WriteLine($"{item.FirstName} {item.LastName}");
     }
 }
 
 Console.ReadLine();
 
+[DynamicDtoCore.DynamicClass("MinhaClasseDeTeste")]
+static void DoSelectWithDynamicResult(string SQL)
+{
+    using (DbConnection connection = DynamicDtoCore.ProviderHelper.CreateConnection())
+    {
+        var factory = new DynamicDtoCore.DynamicClassFactory(connection.CreateCommand());
+        var results = factory.Select(SQL);
+        int i = 0;
+        foreach (var item in results)
+        {
+            if (i == 0)
+            {
+                Console.WriteLine(item.GetType().FullName);
+                i++;
+            }
+            //Console.WriteLine($"{item.FirstName} {item.LastName}");
+        }
+    }
+}

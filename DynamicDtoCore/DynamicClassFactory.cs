@@ -258,7 +258,10 @@ namespace DynamicDtoCore
 
         private void ExtractAssemblyAndTypeName(StackTrace trace, string defTypeName, out string assemblyName, out string typeName)
         {
-            var attrib = trace.GetFrames().Where(f => Dclass.IsDefined(f.GetMethod())).Select<StackFrame, Dclass>(f => Dclass.GetDefinedAttribute(f.GetMethod())).LastOrDefault();
+            var frames = trace.GetFrames();
+            var methods = frames.Select(f => f.GetMethod());
+            var attrib = methods.Where(m => Dclass.IsDefined(m)).Select(m => Dclass.GetDefinedAttribute(m)).FirstOrDefault<Dclass>();
+            //var attrib = trace.GetFrames().Where(f => Dclass.IsDefined(f.GetMethod())).Select<StackFrame, Dclass>(f => Dclass.GetDefinedAttribute(f.GetMethod())).LastOrDefault();
 
             var callerFrame = trace.GetFrame(1);
 
@@ -275,18 +278,12 @@ namespace DynamicDtoCore
             }
             if (attrib != null)
             {
-                typeName = attrib.ClassName;
+                typeName = assemblyName + "." + attrib.ClassName;
             }
             else
             {
-                if (defTypeName != string.Empty)
-                {
-                    typeNameBuilder.AppendFormat(TYPE_FORMAT, assemblyName, callerMethod.DeclaringType.Name, defTypeName);
-                }
-                else
-                {
-                    typeNameBuilder.AppendFormat(TYPE_FORMAT, assemblyName, callerMethod.DeclaringType.Name, "By" + callerMethod.Name);
-                }
+                typeNameBuilder.AppendFormat(TYPE_FORMAT, assemblyName, callerMethod.DeclaringType.Name, callerMethod.Name);
+                
                 if (callerMethod.GetParameters().Length > 0)
                 {
                     foreach (var a in callerMethod.GetParameters())
@@ -300,6 +297,7 @@ namespace DynamicDtoCore
                 {
                     typeNameBuilder.Append("Void");
                 }
+                typeNameBuilder.Append("." + defTypeName);
                 typeName = typeNameBuilder.ToString();
             }
         }
