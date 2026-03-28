@@ -246,14 +246,152 @@ namespace DynamicDtoCore
                 //criando os campos
 
                 List<PropertyBuilder> createdProperties = new List<PropertyBuilder>();
-                this.MakeQueryProperties(schema, ref tb, createdProperties);
-                this.CreateVoidCtor(cb);
-
-                Type dType = tb.CreateType();
-                dynamicTypes.TryAdd(typeName, dType);
+                tb = MakeType(schema, typeName, tb, cb, createdProperties);
             }
 
             return dynamicTypes[typeName];
+        }
+
+        private void InjectEqualityLogic(ref TypeBuilder tb, List<PropertyBuilder> properties)
+        {
+            MethodAttributes methodAttrs = MethodAttributes.Public
+                                 | MethodAttributes.Virtual
+                                 | MethodAttributes.HideBySig;
+
+            var equalsMb = tb.DefineMethod("Equals", methodAttrs, typeof(bool), new Type[] { typeof(object) });
+            var il = equalsMb.GetILGenerator();
+            Label isNull = il.DefineLabel();
+
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Brfalse_S, isNull);
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_1);
+
+            MethodInfo method = typeof(DynamicAsRecordHelper).GetMethod("AreEqual");
+            if (method is null)
+            {
+                throw new Exception("AreEqual method not found in DynamicEqualityComparer.");
+            }
+
+            MethodInfo generic = method.MakeGenericMethod(tb);
+
+            il.Emit(OpCodes.Call, generic);
+            il.Emit(OpCodes.Ret);
+
+            il.MarkLabel(isNull);
+            il.Emit(OpCodes.Ldc_I4_0);
+            il.Emit(OpCodes.Ret);
+
+            tb.DefineMethodOverride(equalsMb, typeof(object).GetMethod("Equals", new Type[] { typeof(object) }));
+
+            MethodBuilder hashMb = tb.DefineMethod(
+        "GetHashCode",
+        methodAttrs,
+        typeof(int),
+        Type.EmptyTypes);
+
+            ILGenerator ilHash = hashMb.GetILGenerator();
+
+            // return DynamicEqualityComparer.GetGeneratedHashCode<T>(this);
+            ilHash.Emit(OpCodes.Ldarg_0); // Carrega 'this'
+
+            MethodInfo getHashMethod = typeof(DynamicAsRecordHelper)
+                .GetMethod("GetGeneratedHashCode")
+                .MakeGenericMethod(tb);
+
+            ilHash.Emit(OpCodes.Call, getHashMethod);
+            ilHash.Emit(OpCodes.Ret);
+
+            // Vincula explicitamente ao GetHashCode da classe base (System.Object)
+            tb.DefineMethodOverride(hashMb, typeof(object).GetMethod("GetHashCode"));
+        }
+
+        private void InjectToString(TypeBuilder tb)
+        {
+            MethodAttributes attrs = MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.HideBySig;
+
+            MethodBuilder mb = tb.DefineMethod("ToString", attrs, typeof(string), Type.EmptyTypes);
+            ILGenerator il = mb.GetILGenerator();
+
+            // return DynamicAsRecordHelper.Render<GeneratedType>(this);
+            il.Emit(OpCodes.Ldarg_0);
+
+            MethodInfo method = typeof(DynamicAsRecordHelper).GetMethod("Render");
+            MethodInfo genericMethod = method.MakeGenericMethod(tb);
+
+            il.Emit(OpCodes.Call, genericMethod);
+            il.Emit(OpCodes.Ret);
+
+            tb.DefineMethodOverride(mb, typeof(object).GetMethod("ToString"));
+        }
+
+        private void InjectCloneMethod(TypeBuilder tb)
+        {
+            // Define um método 'public GeneratedType Copy()'
+            MethodBuilder mb = tb.DefineMethod("Copy", MethodAttributes.Public | MethodAttributes.HideBySig, tb, Type.EmptyTypes);
+            ILGenerator il = mb.GetILGenerator();
+
+            // return DynamicAsRecordHelper.Clone<GeneratedType>(this);
+            il.Emit(OpCodes.Ldarg_0);
+
+            MethodInfo method = typeof(DynamicAsRecordHelper).GetMethod("Clone").MakeGenericMethod(tb);
+            il.Emit(OpCodes.Call, method);
+            il.Emit(OpCodes.Ret);
+        }
+
+        private void InjectDeconstruct(TypeBuilder tb, List<PropertyBuilder> properties)
+        {
+            if (properties == null || properties.Count == 0)
+                return;
+
+            var parameterTypes = properties.Select(p => p.PropertyType.MakeByRefType()).ToArray();
+
+            MethodBuilder mb = tb.DefineMethod(
+                "Deconstruct",
+                MethodAttributes.Public | MethodAttributes.HideBySig,
+                typeof(void),
+                parameterTypes);
+
+            // Define os nomes dos parâmetros e marca-os como 'out'
+            for (int i = 0; i < properties.Count; i++)
+            {
+                mb.DefineParameter(i + 1, ParameterAttributes.Out, properties[i].Name.ToLower());
+            }
+
+            ILGenerator il = mb.GetILGenerator();
+
+            for (int i = 0; i < properties.Count; i++)
+            {
+                Type propType = properties[i].PropertyType;
+                MethodInfo getMethod = properties[i].GetGetMethod(true);
+                if (getMethod == null)
+                    throw new InvalidOperationException($"Getter for property '{properties[i].Name}' not found.");
+
+                // Load address of the 'out' parameter (argument index i+1)
+                il.Emit(OpCodes.Ldarg, i + 1);
+
+                // Load 'this' and call the getter to push the value
+                il.Emit(OpCodes.Ldarg_0);
+
+                // Use Call for value-type getters (no virtual dispatch), Callvirt ok for reference-type getters.
+                // Using Call for value-type avoids invalid use of callvirt on value types.
+                il.Emit(propType.IsValueType ? OpCodes.Call : OpCodes.Callvirt, getMethod);
+
+                // Store the value into the byref parameter:
+                if (propType.IsValueType)
+                {
+                    // For value types (including Nullable<T>), use stobj <propType>
+                    il.Emit(OpCodes.Stobj, propType);
+                }
+                else
+                {
+                    // For reference types, use stind.ref
+                    il.Emit(OpCodes.Stind_Ref);
+                }
+            }
+
+            il.Emit(OpCodes.Ret);
         }
 
         private void ExtractAssemblyAndTypeName(StackTrace trace, string defTypeName, out string assemblyName, out string typeName)
@@ -325,15 +463,23 @@ namespace DynamicDtoCore
 
                 List<PropertyBuilder> createdProperties;
                 this.MakeInterfaceProperties<Interface>(ref tb, out createdProperties);
-                this.MakeQueryProperties(schema, ref tb, createdProperties);
-                this.CreateVoidCtor(cb);
-
-                Type dType = tb.CreateType();
-
-                dynamicTypes.TryAdd(typeName, dType);
+                tb = MakeType(schema, typeName, tb, cb, createdProperties);
             }
 
             return dynamicTypes[typeName];
+        }
+
+        private TypeBuilder MakeType(DataTable schema, string typeName, TypeBuilder tb, ConstructorBuilder cb, List<PropertyBuilder> createdProperties)
+        {
+            this.MakeQueryProperties(schema, ref tb, createdProperties);
+            this.CreateVoidCtor(cb);
+            this.InjectEqualityLogic(ref tb, createdProperties);
+            this.InjectToString(tb);
+            this.InjectCloneMethod(tb);
+            this.InjectDeconstruct(tb, createdProperties);
+            Type dType = tb.CreateType();
+            dynamicTypes.TryAdd(typeName, dType);
+            return tb;
         }
 
         #region Documentation
@@ -385,6 +531,7 @@ namespace DynamicDtoCore
 
         private void MakeInterfaceProperties<Interface>(ref TypeBuilder tb,out List<PropertyBuilder> createdProperties)
         {
+            Type[] requiredModifiers = new[] { typeof(System.Runtime.CompilerServices.IsExternalInit) };
             createdProperties = new List<PropertyBuilder>();
 
             tb.AddInterfaceImplementation(typeof(Interface));
@@ -402,7 +549,7 @@ namespace DynamicDtoCore
 
             foreach (var f in fields.Values)
             {
-                createdProperties.Add(tb.DefineProperty(f.Name.Remove(0, FIELD_PREFIX.Length), System.Reflection.PropertyAttributes.None, CallingConventions.Any, f.FieldType, null));
+                createdProperties.Add(tb.DefineProperty(f.Name.Remove(0, FIELD_PREFIX.Length), PropertyAttributes.None, CallingConventions.Any, f.FieldType, null));
             }
 
             //definindo getters e setters para as propriedades.
@@ -422,20 +569,25 @@ namespace DynamicDtoCore
                     ilGen.Emit(OpCodes.Ldarg_0);
                     ilGen.Emit(OpCodes.Ldfld, field); //selecionando o campo de referência.
                     ilGen.Emit(OpCodes.Ret);
-
+                    p.SetGetMethod(newGet);
                     //por ser interface, override
                     tb.DefineMethodOverride(newGet, getMethod);
                 }
                 if (setMethod != null)
                 {
-                    var newSet = tb.DefineMethod(SET_PREFIX + p.Name, setAttrib, typeof(void), new Type[] { pinfo.PropertyType });
+                    // Em vez de usar SetParameters(requiredModifiers)
+                    var newSet = tb.DefineMethod(SET_PREFIX + p.Name,
+    setAttrib,
+    typeof(void),
+    new Type[] { pinfo.PropertyType });
+
                     ILGenerator ilGen = newSet.GetILGenerator();
                     ilGen.Emit(OpCodes.Ldarg_0);
                     ilGen.Emit(OpCodes.Ldarg_1);
-                    ilGen.Emit(OpCodes.Stfld, field); //selecionando o campo de referência.
+                    ilGen.Emit(OpCodes.Stfld, field);
                     ilGen.Emit(OpCodes.Ret);
 
-                    //por ser interface, override
+                    p.SetSetMethod(newSet);
                     tb.DefineMethodOverride(newSet, setMethod);
                 }
             }
