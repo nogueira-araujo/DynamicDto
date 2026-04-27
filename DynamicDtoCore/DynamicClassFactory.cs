@@ -466,7 +466,8 @@ namespace DynamicDtoCore
                 tb = MakeType(schema, typeName, tb, cb, createdProperties);
             }
 
-            return dynamicTypes[typeName];
+            var resultType = dynamicTypes[typeName];
+            return resultType;
         }
 
         private TypeBuilder MakeType(DataTable schema, string typeName, TypeBuilder tb, ConstructorBuilder cb, List<PropertyBuilder> createdProperties)
