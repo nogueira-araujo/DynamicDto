@@ -10,6 +10,7 @@ namespace DynamicDtoCore
         public static string ConnectionName { get; private set; }
         public static string ProviderInfo { get; private set; }
         public static string ConnectionString { get; private set; }
+        public static bool LightWeightMode { get; private set; } = true;
 
         static ConfigurationHelper()
         {
@@ -22,11 +23,16 @@ namespace DynamicDtoCore
                 ConnectionName = Configuration["Connection"];
                 ConnectionString = Configuration.GetConnectionString(ConnectionName);
                 ProviderInfo = Configuration[$"DbProviders:{ConnectionName}"];
-                UseDbParameterName = bool.TryParse(Configuration["UseDbParameterName"], out bool useParam) && useParam;
+                var useDbParam = false;
+                var successParse = bool.TryParse(Configuration["UseDbParameterName"], out useDbParam);
+                UseDbParameterName = useDbParam;
                 if (UseDbParameterName)
                 {
                     ParameterPrefix = Configuration["DbParameterPrefix"] ?? "@";
                 }
+                var lightWeight = true;
+                successParse = bool.TryParse(Configuration["LightWeightMode"], out lightWeight);
+                LightWeightMode = lightWeight;
             }
             catch (Exception ex)
             {

@@ -13,11 +13,11 @@ namespace DynamicDtoCore
 {
     #region Documentation
     /// <summary>
-    /// Classe reponsável pela transaformação de resultados de consultas em objetos criados dinâmicamente.
+    /// Calsse responsável por criar tipos dinâmicos em tempo de execução a partir do resultado de consultas SQL. A classe utiliza reflexão e geração dinâmica de código para construir tipos que correspondem à estrutura dos dados retornados pelas consultas, permitindo que os consumidores acessem os dados de forma fortemente tipada sem a necessidade de definir classes estáticas para cada consulta. A fábrica gerencia a criação e o cache dos tipos dinâmicos, garantindo eficiência e reutilização quando possível.
     /// </summary>
     #endregion
     [DataObject]
-    public class DynamicClassFactory
+    public class DynamicClassFactory : IDisposable
     {
         #region Fields
         const string ASSEMBLY_FORMAT = "{0}.Dynamics";
@@ -29,10 +29,10 @@ namespace DynamicDtoCore
         private static ConcurrentDictionary<string, Type> dynamicTypes;
         private static readonly bool useParameterNames = true;
         private static readonly string parameterPrefix = "@";
-
+        private static readonly bool lightWeight = true;
         private String thisAssemblyName;
-
         private DbCommand command;
+        private DbConnection? connection;
         #endregion
 
         #region Constructors
@@ -42,13 +42,12 @@ namespace DynamicDtoCore
             try
             {
                 dynamicTypes = new ConcurrentDictionary<string, Type>();
-
-
                 DynamicClassFactory.useParameterNames = ConfigurationHelper.UseDbParameterName;
                 if (DynamicClassFactory.useParameterNames)
                 {
                     DynamicClassFactory.parameterPrefix = ConfigurationHelper.ParameterPrefix;
                 }
+                DynamicClassFactory.lightWeight = ConfigurationHelper.LightWeightMode;
             }
             catch (Exception ex)
             {
@@ -56,6 +55,13 @@ namespace DynamicDtoCore
             }
         }
 
+        /// <summary>
+        /// Initializes a new instance of the DynamicClassFactory class with the specified DbCommand.
+        /// </summary>
+        /// <remarks>Stores the current type's assembly name and assigns the provided command to a private
+        /// field.</remarks>
+        /// <param name="command">The DbCommand used by the factory.</param>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="command"/> is <see langword="null"/>.</exception>
         public DynamicClassFactory(DbCommand command)
         {
             if (command == null)
@@ -65,19 +71,50 @@ namespace DynamicDtoCore
             this.command = command;
         }
 
-        #endregion
-
-        #region Methods
-
-        #region Documentation
         /// <summary>
-        /// Executa a consulta passada no parâmetro, segundo os argumentos desejados.
+        /// Initializes a new instance of DynamicClassFactory using the specified DbConnection.
         /// </summary>
-        /// <returns>
-        /// <see cref="IEnumerable"/> de tipo dinâmico que representa a resposta à consulta 
-        /// </returns>
-        #endregion
-        [DataObjectMethod(DataObjectMethodType.Select)]
+        /// <param name="connection">The DbConnection from which a DbCommand is created.</param>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
+        public DynamicClassFactory(DbConnection connection) : this(connection.CreateCommand())
+        {
+            if (connection == null)
+                throw new ArgumentNullException("connection");
+            this.connection = connection;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the DynamicClassFactory class and prepares the database objects used by the
+        /// factory by creating a provider-specific connection and a command.
+        /// </summary>
+        /// <remarks>The constructor obtains a connection from ProviderHelper.CreateConnection and creates
+        /// a command from that connection. The factory is responsible for managing and disposing these resources when
+        /// no longer needed.</remarks>
+        public DynamicClassFactory()
+        {
+            this.thisAssemblyName = this.GetType().Assembly.GetName().Name;
+            this.connection = ProviderHelper.CreateConnection();
+            this.command = this.connection.CreateCommand();
+        }
+
+        ~DynamicClassFactory()
+        {
+            this.Dispose();
+        }
+
+#endregion
+
+            #region Methods
+
+            #region Documentation
+            /// <summary>
+            /// Executa a consulta passada no parâmetro, segundo os argumentos desejados.
+            /// </summary>
+            /// <returns>
+            /// <see cref="IEnumerable"/> de tipo dinâmico que representa a resposta à consulta 
+            /// </returns>
+            #endregion
+            [DataObjectMethod(DataObjectMethodType.Select)]
         public IEnumerable<Interface> Select<Interface>(string sql, params object[] args)
         {
             DataTable data;
@@ -88,14 +125,19 @@ namespace DynamicDtoCore
             return BuildResponse(dynamicType, data).Cast<Interface>();
         }
 
+        public Task<IEnumerable<Interface>> SelectAssync<Interface>(string sql, params object[] args)
+        {
+            return Task.Factory.StartNew(() => { return Select<Interface>(sql, args); });
+        }
+
         #region Documentation
-            /// <summary>
-            /// Executa a consulta passada no parâmetro, segundo os argumentos desejados.
-            /// </summary>
-            /// <returns>
-            /// <see cref="IEnumerable"/> de tipo dinâmico que representa a resposta à consulta 
-            /// </returns>
-            #endregion
+        /// <summary>
+        /// Executa a consulta passada no parâmetro, segundo os argumentos desejados.
+        /// </summary>
+        /// <returns>
+        /// <see cref="IEnumerable"/> de tipo dinâmico que representa a resposta à consulta 
+        /// </returns>
+        #endregion
         [DataObjectMethod(DataObjectMethodType.Select)]
         public IEnumerable<dynamic> Select(string sql, params object[] args)
         {
@@ -106,6 +148,11 @@ namespace DynamicDtoCore
             sql = InnerSelect(sql, args, out data, out schema, out trace);
             Type dynamicType = BuildDynamicClass(schema, trace);
             return BuildResponse(dynamicType, data);
+        }
+
+        public Task<IEnumerable<dynamic>> SelectAssync(string sql, params object[] args)
+        {
+            return Task.Factory.StartNew(() => { return Select(sql, args); });
         }
 
         private string InnerSelect(string sql, object[] args, out DataTable data, out DataTable schema, out StackTrace trace)
@@ -121,8 +168,6 @@ namespace DynamicDtoCore
             adapt.FillSchema(schema, SchemaType.Source);
             return sql;
         }
-
-        
 
         #region Documentation
         /// <summary>
@@ -474,10 +519,13 @@ namespace DynamicDtoCore
         {
             this.MakeQueryProperties(schema, ref tb, createdProperties);
             this.CreateVoidCtor(cb);
-            this.InjectEqualityLogic(ref tb, createdProperties);
-            this.InjectToString(tb);
-            this.InjectCloneMethod(tb);
-            this.InjectDeconstruct(tb, createdProperties);
+            if (!DynamicClassFactory.lightWeight)
+            {
+                this.InjectEqualityLogic(ref tb, createdProperties);
+                this.InjectToString(tb);
+                this.InjectCloneMethod(tb);
+                this.InjectDeconstruct(tb, createdProperties);
+            }
             Type dType = tb.CreateType();
             dynamicTypes.TryAdd(typeName, dType);
             return tb;
@@ -577,10 +625,7 @@ namespace DynamicDtoCore
                 if (setMethod != null)
                 {
                     // Em vez de usar SetParameters(requiredModifiers)
-                    var newSet = tb.DefineMethod(SET_PREFIX + p.Name,
-    setAttrib,
-    typeof(void),
-    new Type[] { pinfo.PropertyType });
+                    var newSet = tb.DefineMethod(SET_PREFIX + p.Name, setAttrib, typeof(void), new Type[] { pinfo.PropertyType });
 
                     ILGenerator ilGen = newSet.GetILGenerator();
                     ilGen.Emit(OpCodes.Ldarg_0);
@@ -655,6 +700,25 @@ namespace DynamicDtoCore
                 dynamics.Add(dyn);
             }
             return dynamics;
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                if (this.command != null)
+                {
+                    this.command.Dispose();
+                }
+                if (this.connection != null)
+                {
+                    this.connection.Dispose();
+                }
+            }
+            catch
+            {
+                // Suppress any exceptions thrown during finalization to avoid unhandled exceptions.
+            }
         }
 
         #endregion

@@ -4,9 +4,9 @@ using System.Text;
 
 namespace DynamicDtoCore.Tester
 {
-    public interface IPerson
+    public interface IProduct
     {
-        string FirstName { get; set; }
-        string LastName { get; set; }
+        string Name { get; set; }
+        DateTime ModifiedDate { get; set; }
     }
 }

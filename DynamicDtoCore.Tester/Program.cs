@@ -1,34 +1,25 @@
 ﻿// See https://aka.ms/new-console-template for more information
+using DynamicDtoCore;
 using DynamicDtoCore.Tester;
 using System.Data.Common;
 
 Console.WriteLine("Hello, World!");
 
 //use AdventureWorks2025 database sample from Microsoft
-const string SQL = @"SELECT TOP (1000) [BusinessEntityID]
-      ,[PersonType]
-      ,[NameStyle]
-      ,[Title]
-      ,[FirstName]
-      ,[MiddleName]
-      ,[LastName]
-      ,[Suffix]
-      ,[EmailPromotion]
-      ,[AdditionalContactInfo]
-      ,[Demographics]
+const string SQL = @"SELECT TOP (1000) [ProductModelID]
+      ,[Name]
+      ,[CatalogDescription]
       ,[rowguid]
       ,[ModifiedDate]
-FROM[AdventureWorks2025].[Person].[Person]";
+  FROM [AdventureWorksLT2025].[SalesLT].[ProductModel]";
 
 
 dynamic instance;
-IPerson instance2;
+IProduct instance2;
 
 DoSelectWithDynamicResult(SQL, out instance);
 Console.WriteLine();
-DoSelectWithDynamicResultGeneric<IPerson>(SQL, out instance2);
-
-var method = instance.GetType().GetMethods()[17];
+DoSelectWithDynamicResultGeneric<IProduct>(SQL, out instance2);
 
 Console.ReadLine();
 
@@ -50,13 +41,9 @@ static void DoSelectWithDynamicResultGeneric<T>(string SQL, out T instance) wher
                 return;
                 i++;
             }
-            //if(item is IPerson)
-            //Console.WriteLine($"{item.FirstName} {item.LastName}");
         }
     }
 }
-
-//Console.ReadLine();
 
 [DynamicDtoCore.DynamicClass("MinhaClasseDeTeste")]
 static void DoSelectWithDynamicResult(string SQL, out dynamic instance)
@@ -77,7 +64,16 @@ static void DoSelectWithDynamicResult(string SQL, out dynamic instance)
                 return;
                 i++;
             }
-            //Console.WriteLine($"{item.FirstName} {item.LastName}");
         }
     }
 }
+
+using(var factory = new DynamicClassFactory())
+{
+    foreach (var item in factory.Select<IProduct>(SQL))
+    {
+        Console.WriteLine(string.Format("Name: {0}, ModifiedDate: {1}", item.Name, item.ModifiedDate));
+    }
+}
+
+Console.ReadLine();
