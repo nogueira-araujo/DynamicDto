@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using System.Collections.Concurrent;
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
@@ -71,6 +72,7 @@ namespace DynamicDtoCore
 
             this.thisAssemblyName = this.GetType().Assembly.GetName().Name;
             this.command = command;
+            this.connection = command.Connection;
         }
 
         #region Documentation
@@ -80,11 +82,12 @@ namespace DynamicDtoCore
         /// <param name="connection">The DbConnection from which a DbCommand is created.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
         #endregion
-        public DynamicClassFactory(DbConnection connection) : this(connection.CreateCommand())
+        public DynamicClassFactory(DbConnection connection)
         {
             if (connection == null)
                 throw new ArgumentNullException("connection");
             this.connection = connection;
+            this.command = this.connection.CreateCommand();
         }
 
         #region Documentation
