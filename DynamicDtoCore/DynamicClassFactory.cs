@@ -55,6 +55,7 @@ namespace DynamicDtoCore
             }
         }
 
+        #region Documentation
         /// <summary>
         /// Initializes a new instance of the DynamicClassFactory class with the specified DbCommand.
         /// </summary>
@@ -62,6 +63,7 @@ namespace DynamicDtoCore
         /// field.</remarks>
         /// <param name="command">The DbCommand used by the factory.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="command"/> is <see langword="null"/>.</exception>
+        #endregion
         public DynamicClassFactory(DbCommand command)
         {
             if (command == null)
@@ -71,11 +73,13 @@ namespace DynamicDtoCore
             this.command = command;
         }
 
+        #region Documentation
         /// <summary>
         /// Initializes a new instance of DynamicClassFactory using the specified DbConnection.
         /// </summary>
         /// <param name="connection">The DbConnection from which a DbCommand is created.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
+        #endregion
         public DynamicClassFactory(DbConnection connection) : this(connection.CreateCommand())
         {
             if (connection == null)
@@ -83,6 +87,7 @@ namespace DynamicDtoCore
             this.connection = connection;
         }
 
+        #region Documentation
         /// <summary>
         /// Initializes a new instance of the DynamicClassFactory class and prepares the database objects used by the
         /// factory by creating a provider-specific connection and a command.
@@ -90,6 +95,7 @@ namespace DynamicDtoCore
         /// <remarks>The constructor obtains a connection from ProviderHelper.CreateConnection and creates
         /// a command from that connection. The factory is responsible for managing and disposing these resources when
         /// no longer needed.</remarks>
+        #endregion
         public DynamicClassFactory()
         {
             this.thisAssemblyName = this.GetType().Assembly.GetName().Name;
@@ -97,6 +103,7 @@ namespace DynamicDtoCore
             this.command = this.connection.CreateCommand();
         }
 
+        // Finalizer to ensure resources are released if Dispose is not called.
         ~DynamicClassFactory()
         {
             this.Dispose();

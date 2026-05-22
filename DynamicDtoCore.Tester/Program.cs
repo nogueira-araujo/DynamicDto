@@ -23,8 +23,10 @@ DoSelectWithDynamicResultGeneric<IProduct>(SQL, out instance2);
 
 Console.ReadLine();
 
+//using the DynamicClass attribute to specify the name of the dynamic class to be created
 static void DoSelectWithDynamicResultGeneric<T>(string SQL, out T instance) where T : class
 {
+    //using a connection created externally, which will be passed to the DynamicClassFactory constructor
     using (DbConnection connection = DynamicDtoCore.ProviderHelper.CreateConnection())
     {
         instance = null;
@@ -45,9 +47,11 @@ static void DoSelectWithDynamicResultGeneric<T>(string SQL, out T instance) wher
     }
 }
 
+//using the DynamicClass attribute to specify the name of the dynamic class to be created
 [DynamicDtoCore.DynamicClass("MinhaClasseDeTeste")]
 static void DoSelectWithDynamicResult(string SQL, out dynamic instance)
 {
+    //using a connection created externally, which will be passed to the DynamicClassFactory constructor
     using (DbConnection connection = DynamicDtoCore.ProviderHelper.CreateConnection())
     {
         instance = null;
@@ -68,7 +72,8 @@ static void DoSelectWithDynamicResult(string SQL, out dynamic instance)
     }
 }
 
-using(var factory = new DynamicClassFactory())
+//using the default constructor of DynamicClassFactory, which will create a connection internally
+using (var factory = new DynamicClassFactory())
 {
     foreach (var item in factory.Select<IProduct>(SQL))
     {
